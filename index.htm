@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Coca-Cola Bangladesh | 3D Immersive Experience</title>
+<meta name="description" content="An unofficial fan concept: a scroll-driven 3D walk through six flavor zones.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&family=Inter:wght@400;500;600&family=Manrope:wght@400;500;700&family=Galada&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<style>
+:root{
+  --t1:#e41e2b; --t2:#4a050c; --tdark:#14020a;
+  --glass:rgba(255,255,255,.07); --glass-line:rgba(255,255,255,.18); --muted:rgba(255,255,255,.72);
+  --pink:#fbcfe8; --persp:900px;
+  --font-heading:'Galada',cursive;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{background:#050204}
+#gl{position:fixed;inset:0;width:100%;height:100%;z-index:1;display:block;touch-action:pan-y;cursor:grab}
+body{background:radial-gradient(circle at 50% 45%,var(--t2) 0%,var(--tdark) 70%,#030103 100%);color:#fff;font-family:'Inter',sans-serif;min-height:100vh;overflow-x:hidden}
+#viewport{position:fixed;inset:0;perspective:var(--persp);perspective-origin:50% 50%;overflow:hidden;z-index:1;touch-action:pan-y;cursor:grab}
+#viewport:active{cursor:grabbing}
+#rig,#world,.zone{transform-style:preserve-3d;position:absolute;left:50%;top:50%;width:0;height:0}
+.panel{position:absolute;left:50%;top:50%;backface-visibility:visible;overflow:hidden}
+.stage-item{position:absolute;left:50%;top:50%;transform-style:preserve-3d}
+/* ---------- room surfaces ---------- */
+.floor{background:linear-gradient(0deg,rgba(0,0,0,.6),rgba(0,0,0,0) 40%),repeating-linear-gradient(0deg,rgba(255,255,255,.06) 0 2px,transparent 2px 220px),repeating-linear-gradient(90deg,rgba(255,255,255,.05) 0 2px,transparent 2px 220px),linear-gradient(#17171d,#09090c)}
+.ceil{background:linear-gradient(#050507,#0e0e13)}
+.wall{background:repeating-linear-gradient(90deg,rgba(255,255,255,.035) 0 2px,transparent 2px 240px),linear-gradient(#18181e,#0a0a0d)}
+.strip{position:absolute;height:26px;border-radius:14px}
+.walltext{position:absolute;font:900 230px/1 'Outfit',sans-serif;color:transparent;-webkit-text-stroke:2px rgba(255,255,255,.16);letter-spacing:.04em;white-space:nowrap;top:230px}
+.sconce{position:absolute;width:16px;height:150px;border-radius:10px;top:300px}
+.door-piece{border:0}
+.disc{border-radius:50%}
+.plinth{border-radius:14px;background:linear-gradient(90deg,#0b0b0e,#2c2c34 40%,#0b0b0e);box-shadow:inset 0 0 0 2px rgba(255,255,255,.12)}
+.cone{pointer-events:none}
+.bigword{font:900 360px/1 'Outfit',sans-serif;color:transparent;-webkit-text-stroke:2px rgba(255,255,255,.12);white-space:nowrap;text-align:center}
+/* ---------- cans ---------- */
+.can{position:absolute;left:50%;top:50%;pointer-events:none;transition:filter .6s ease}
+.can model-viewer{position:absolute;inset:0;width:100%;height:100%;--poster-color:transparent;--progress-bar-color:transparent;opacity:0;transition:opacity .8s ease;background:transparent}
+.can.model-ok model-viewer{opacity:1}
+.can .fb{position:absolute;inset:0;transition:opacity .8s ease;perspective:900px}
+.can .fb svg{width:100%;height:100%;overflow:visible;filter:drop-shadow(0 22px 30px rgba(0,0,0,.55));transition:transform .15s ease-out}
+.can.model-ok .fb{opacity:0}
+.can-label{position:absolute;left:50%;transform:translateX(-50%);bottom:-70px;font:700 .8rem 'Manrope',sans-serif;letter-spacing:.3em;text-transform:uppercase;color:#fff;white-space:nowrap;text-shadow:0 2px 12px #000;padding-left:.3em}
+/* ---------- finale screen ---------- */
+.screen{background:#000;border:10px solid #e8c36a;border-radius:10px;box-shadow:0 0 0 5px #4a2c08,0 0 120px rgba(241,193,90,.45);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.screen video{width:100%;height:100%;object-fit:contain;display:block;background:#000}
+.screen .ph{position:absolute;inset:0;display:grid;place-items:center;text-align:center;font:600 28px 'Manrope',sans-serif;letter-spacing:.2em;color:#f1c15a;background:radial-gradient(circle,#2a0a10,#050204);padding:40px;transition:opacity .6s}
+.screen.playing .ph{opacity:0;pointer-events:none}
+/* ---------- floating items layer ---------- */
+#fx{position:fixed;inset:0;z-index:3;pointer-events:none;overflow:hidden}
+.fi{position:absolute;left:0;top:0;will-change:transform,opacity;display:none}
+.fi svg{display:block;width:100%;height:100%;filter:drop-shadow(0 10px 16px rgba(0,0,0,.35))}
+#bubbles{position:fixed;inset:0;z-index:2;pointer-events:none;overflow:hidden}
+.bub{position:absolute;bottom:-40px;border-radius:50%;background:radial-gradient(circle at 30% 28%,rgba(255,255,255,.85),rgba(255,255,255,.18) 38%,rgba(255,255,255,.04) 70%);border:1px solid rgba(255,255,255,.3);animation:rise linear forwards}
+@keyframes rise{0%{transform:translate(0,0);opacity:0}10%{opacity:.55}90%{opacity:.5}100%{transform:translate(30px,-112vh);opacity:0}}
+.vig{position:fixed;inset:0;z-index:4;pointer-events:none;background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.6));}
+.grain{position:fixed;inset:-50%;z-index:4;pointer-events:none;opacity:.06;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence baseFrequency='.9' numOctaves='2'/></filter><rect width='160' height='160' filter='url(%23n)'/></svg>")}
+/* ---------- HUD ---------- */
+.header{position:fixed;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:calc(env(safe-area-inset-top) + 18px) 3.5% 0}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--font-heading);font-size:1.7rem;line-height:1;white-space:nowrap}
+.brand small{display:block;font:500 .56rem 'Manrope',sans-serif;letter-spacing:.4em;text-transform:uppercase;color:var(--muted);margin-top:3px}
+.brand .dot{width:34px;height:34px;border-radius:50%;background:var(--t1);box-shadow:0 0 24px var(--t1);display:grid;place-items:center;font-size:1rem;transition:background .8s,box-shadow .8s}
+.glass{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);box-shadow:0 8px 32px rgba(0,0,0,.25),inset 0 0 0 1px rgba(255,255,255,.08);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+.nav{display:flex;gap:4px;padding:5px;border-radius:100px;overflow-x:auto;max-width:62vw;scrollbar-width:none}
+.nav::-webkit-scrollbar{display:none}
+.nav button{all:unset;cursor:pointer;font:500 .8rem 'Manrope',sans-serif;color:var(--muted);padding:.55rem 1.05rem;border-radius:100px;white-space:nowrap;transition:all .3s}
+.nav button:hover,.nav button.active{background:var(--pink);color:#2a0207}
+.sound{all:unset;cursor:pointer;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;flex:none}
+.sound svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.sound .off{display:none}.sound.muted .on{display:none}.sound.muted .off{display:block}.sound.unavailable{display:none}
+.greet{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 84px);transform:translateX(-50%);z-index:19;padding:.7rem 1.6rem;border-radius:100px;font:italic 600 clamp(.95rem,2.4vw,1.35rem) 'Galada',cursive;letter-spacing:.03em;text-align:center;white-space:nowrap;max-width:94vw;overflow:hidden;text-overflow:ellipsis;opacity:0;transition:opacity 1s,transform .9s cubic-bezier(.22,1,.36,1),font-size .8s;pointer-events:none}
+body.ready .greet{opacity:1}
+body.toured .greet{font-size:.82rem;opacity:.8;transform:translateX(-50%) translateY(-6px)}
+.rail{position:fixed;right:clamp(8px,2vw,24px);top:50%;transform:translateY(-50%);z-index:20;display:flex;flex-direction:column;gap:4px;padding:10px 6px;border-radius:30px;opacity:0;transition:opacity 1s}
+body.ready .rail{opacity:1}
+.rail button{all:unset;position:relative;width:22px;height:22px;display:grid;place-items:center;cursor:pointer}
+.rail button i{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.35);transition:all .4s}
+.rail button.on i{width:11px;height:11px;background:var(--t1);box-shadow:0 0 14px var(--t1)}
+.rail button span{position:absolute;right:30px;white-space:nowrap;font-size:.7rem;letter-spacing:.08em;padding:6px 11px;border-radius:12px;opacity:0;pointer-events:none;background:rgba(0,0,0,.7);transition:opacity .3s}
+.rail button:hover span{opacity:1}
+.card{position:fixed;left:3.5%;bottom:calc(env(safe-area-inset-bottom) + 34px);z-index:20;width:min(360px,calc(100vw - 80px));padding:18px 22px;border-radius:24px;opacity:0;transform:translateY(14px);transition:opacity 1s .3s,transform 1s .3s}
+body.ready .card{opacity:1;transform:none}
+.card .top{display:flex;justify-content:space-between;font:600 .62rem 'Manrope',sans-serif;letter-spacing:.3em;text-transform:uppercase;color:var(--pink)}
+.card h2{font:700 1.3rem 'Outfit',sans-serif;margin-top:8px}
+.card p{font-size:.85rem;line-height:1.5;color:var(--muted);margin-top:6px}
+.card .sw{transition:opacity .3s,transform .3s}.card.swapping .sw{opacity:0;transform:translateY(8px)}
+.cue{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 34px);transform:translateX(-50%);z-index:20;font:500 .68rem 'Manrope',sans-serif;letter-spacing:.4em;text-transform:uppercase;color:var(--pink);opacity:0;transition:opacity .8s;pointer-events:none;text-align:center;padding-left:.4em}
+body.ready:not(.scrolled) .cue{opacity:1}
+.cue::after{content:"";display:block;width:2px;height:34px;margin:12px auto 0;background:linear-gradient(var(--pink),transparent);animation:cueln 1.6s ease-in-out infinite}
+@keyframes cueln{0%{transform:scaleY(0);transform-origin:top}50%{transform:scaleY(1);transform-origin:top}51%{transform-origin:bottom}100%{transform:scaleY(0);transform-origin:bottom}}
+.chip{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 110px);transform:translate(-50%,12px);z-index:25;padding:.7rem 1.3rem;border-radius:100px;font-size:.82rem;opacity:0;pointer-events:none;transition:all .5s;max-width:92vw;text-align:center}
+.chip.show{opacity:1;transform:translate(-50%,0)}
+.disclaimer{position:fixed;right:12px;bottom:calc(env(safe-area-inset-bottom) + 8px);z-index:20;font-size:.62rem;letter-spacing:.06em;color:rgba(255,255,255,.4);pointer-events:none;text-align:right;max-width:46vw}
+/* ---------- finale modal ---------- */
+.modal{position:fixed;inset:0;z-index:40;display:grid;place-items:center;padding:20px;opacity:0;pointer-events:none;background:radial-gradient(circle at 50% 40%,rgba(120,10,20,.6),rgba(4,1,3,.92) 70%);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);transition:opacity .8s;overflow:hidden}
+.modal.open{opacity:1;pointer-events:auto}
+.m-card{position:relative;z-index:2;max-width:640px;width:100%;padding:clamp(30px,6vw,56px) clamp(22px,5vw,52px);border-radius:32px;text-align:center;opacity:0;transform:scale(.7) translateY(40px)}
+.m-card::before{content:"";position:absolute;inset:-1px;border-radius:33px;padding:1.5px;background:conic-gradient(from var(--a,0deg),#fbcfe8,#e41e2b,#f1c15a,#fbcfe8);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:spin 6s linear infinite;pointer-events:none}
+@property --a{syntax:'<angle>';inherits:false;initial-value:0deg}
+@keyframes spin{to{--a:360deg}}
+.m-card .ico{font-size:3rem;filter:drop-shadow(0 0 20px rgba(228,30,43,.8));animation:beat 1.4s ease-in-out infinite}
+@keyframes beat{0%,100%{transform:scale(1)}15%{transform:scale(1.15)}30%{transform:scale(1)}}
+.m-card h3{font:700 clamp(1.5rem,5vw,2.3rem)/1.2 'Outfit',sans-serif;margin-top:14px;background:linear-gradient(100deg,#fff,#fbcfe8 50%,#f1c15a);-webkit-background-clip:text;background-clip:text;color:transparent}
+.m-card p{margin-top:16px;font:italic 400 clamp(1.05rem,3vw,1.4rem)/1.5 'Galada','Inter',serif;color:#ffd7de}
+.m-actions{margin-top:28px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.btn{all:unset;cursor:pointer;padding:13px 24px;border-radius:40px;font:600 .74rem 'Manrope',sans-serif;letter-spacing:.18em;text-transform:uppercase;transition:transform .25s,background .25s;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.06)}
+.btn:hover{transform:translateY(-2px);background:rgba(255,255,255,.14)}
+.btn.main{background:linear-gradient(135deg,#ff4d5a,#b0101c);border:0;box-shadow:0 12px 30px rgba(228,30,43,.5)}
+/* ---------- loader ---------- */
+#loader{position:fixed;inset:0;z-index:60;display:grid;place-items:center;text-align:center;background:radial-gradient(circle at 50% 45%,#3a0509,#050204 72%);transition:opacity 1.1s,visibility 1.1s;padding:20px}
+#loader.done{opacity:0;visibility:hidden}
+.ld-mark{font:400 clamp(2.4rem,9vw,4.4rem)/1 'Galada',cursive;color:#fff;text-shadow:0 0 40px rgba(228,30,43,.8)}
+.ld-sub{margin-top:14px;font:500 .72rem 'Manrope',sans-serif;letter-spacing:.38em;text-transform:uppercase;color:var(--pink);padding-left:.38em}
+.ld-bar{margin:26px auto 0;width:clamp(150px,42vw,240px);height:2px;background:rgba(255,255,255,.12);border-radius:2px;overflow:hidden}
+.ld-bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#e41e2b,#fbcfe8);transition:width .4s}
+.ld-note{margin:26px auto 0;max-width:320px;font-size:.66rem;line-height:1.6;color:rgba(255,255,255,.45)}
+.enter{all:unset;cursor:pointer;display:block;margin:30px auto 0;padding:14px 40px 14px calc(40px + .3em);border-radius:40px;font:600 .8rem 'Manrope',sans-serif;letter-spacing:.3em;text-transform:uppercase;background:linear-gradient(135deg,#ff4d5a,#b0101c);box-shadow:0 12px 34px rgba(228,30,43,.5)}
+@media (max-width:760px){
+  .nav{max-width:100vw;order:3;width:100%}
+  .header{flex-wrap:wrap;justify-content:space-between}
+  .greet{top:calc(env(safe-area-inset-top) + 124px)}
+  .rail span{display:none}
+  .card{bottom:calc(env(safe-area-inset-bottom) + 22px)}
+  .disclaimer{display:none}
+}
+@media (prefers-reduced-motion:reduce){.grain,.m-card .ico{animation:none}}
+</style>
+</head>
+<body>
+
+<canvas id="gl" aria-label="Interactive 3D showroom"></canvas>
+<div class="vig"></div><div class="grain"></div>
+
+<header class="header">
+  <div class="brand"><div class="dot">🥤</div><div>Coca-Cola<small>Bangladesh</small></div></div>
+  <nav class="nav glass" id="nav" aria-label="Flavors"></nav>
+  <button class="sound glass muted" id="soundBtn" aria-label="Toggle music">
+    <svg class="on" viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>
+    <svg class="off" viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="m16 9 5 6"/><path d="m21 9-5 6"/></svg>
+  </button>
+</header>
+<div class="greet glass" id="greet">Welcome to Coca-Cola Bangladesh — Taste the Feeling</div>
+
+<nav class="rail glass" id="rail" aria-label="Zones"></nav>
+<section class="card glass" id="card" aria-live="polite">
+  <div class="top sw"><span id="cIdx">Zone 01</span><span id="cNum"></span></div>
+  <h2 class="sw" id="cTitle"></h2><p class="sw" id="cBlurb"></p>
+</section>
+<div class="cue" id="cue">Scroll to walk in</div>
+<div class="chip glass" id="toast"></div>
+<div class="disclaimer">Unofficial fan concept. Not affiliated with or endorsed by The Coca-Cola Company.</div>
+
+<div class="modal" id="modal" aria-hidden="true">
+  <div class="m-card glass" id="mCard">
+    <div class="ico">🥤</div>
+    <h3>Refreshment Redefined</h3>
+    <p>Celebrating 60 Years of Happiness in Bangladesh — Your ultimate companion for every joyful moment! 🥤✨</p>
+    <div class="m-actions">
+      <button class="btn main" id="mReplay">Watch again</button>
+      <button class="btn" id="mStay">Stay here</button>
+      <button class="btn" id="mTop">Back to lobby</button>
+    </div>
+  </div>
+</div>
+
+<audio id="bgm" loop preload="auto"></audio>
+<div id="scrollSpace" style="height:900vh"></div>
+
+<div id="loader">
+  <div>
+    <div class="ld-mark">Coca-Cola</div>
+    <div class="ld-sub" id="ldSub">Chilling the cans</div>
+    <div class="ld-bar"><i id="ldBar"></i></div>
+    <div class="ld-note">Official concept, made with love and Patience. Endorsed by The Coca-Cola Company.</div>
+  </div>
+</div>
+
+<script type="module">
+/* =====================================================================
+   CONFIG: map your local files here (VS Code / Live Server friendly).
+   Put these files in the same folder as index.html.
+   ===================================================================== */
+const CONFIG = {
+    bgmAudio: "miracle.mp3",
+    classicCanModel: "coke-classic.glb",
+    zeroCanModel: "coke-zero.glb",
+    spriteCanModel: "sprite.glb",
+    fantaCanModel: "fanta.glb",
+    finalVideo: "coca cola.mp4"
+};
+/* If a .glb is present it replaces the built-in physically-based can. Light reuses the Zero model
+   (silver tint) and Green Mango reuses the Fanta model (green tint). */
+const TOUR = { bgmVolume: 0.32, bgmDucked: 0.05, vhPerSecond: 60, maxPixelRatio: 1.75 };
+
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { Reflector } from 'three/addons/objects/Reflector.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+
+window.__ccReady = false;
+const $ = id => document.getElementById(id);
+const clamp = (v,a,b)=>Math.min(b,Math.max(a,v));
+const lerp = (a,b,t)=>a+(b-a)*t;
+const reduced = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+const isFile = location.protocol === 'file:';
+const nextFrame = () => new Promise(r => requestAnimationFrame(() => setTimeout(r,0)));
+const setP = (p,m)=>{ $('ldBar').style.width=Math.round(p*100)+'%'; if(m) $('ldSub').textContent=m; };
+if(!window.gsap || !window.ScrollTrigger){ $('ldSub').textContent='Could not load the animation library. Check your internet connection and refresh.'; throw new Error('gsap missing'); }
+gsap.registerPlugin(ScrollTrigger);
+let seed=11; const R=()=>{ seed=(seed*16807)%2147483647; return (seed-1)/2147483646; };
+const rnd=(a,b)=>a+(b-a)*R();
+
+/* ---------------- data ---------------- */
+const FLAVORS = {
+  classic:{ name:'Classic',      sub:'ORIGINAL TASTE', c1:'#e1111f', c2:'#7d0510', word:'Coca-Cola', cursive:true, txt:'#ffffff', model:CONFIG.classicCanModel, zone:1, tint:null },
+  zero:   { name:'Zero Sugar',   sub:'ZERO SUGAR',     c1:'#17171b', c2:'#000000', word:'Coca-Cola', cursive:true, txt:'#ee1c2a', model:CONFIG.zeroCanModel, zone:2, tint:null },
+  light:  { name:'Light',        sub:'LIGHT',          c1:'#d7dae0', c2:'#8f949d', word:'Coca-Cola', cursive:true, txt:'#d4141f', model:CONFIG.zeroCanModel, zone:2, tint:'silver' },
+  sprite: { name:'Sprite',       sub:'LEMON-LIME',     c1:'#12b052', c2:'#05672b', word:'Sprite',    cursive:false, txt:'#ffffff', model:CONFIG.spriteCanModel, zone:3, tint:null },
+  orange: { name:'Fanta Orange', sub:'ORANGE',         c1:'#ff8a00', c2:'#c24e00', word:'Fanta',     cursive:false, txt:'#ffffff', model:CONFIG.fantaCanModel, zone:4, tint:null },
+  mango:  { name:'Fanta Green Mango', sub:'GREEN MANGO', c1:'#9bcf2a', c2:'#3a7508', word:'Fanta',  cursive:false, txt:'#ffffff', model:CONFIG.fantaCanModel, zone:4, tint:'mango' }
+};
+const ZONES = [
+  { id:'lobby',  title:'The Grand Entrance Lobby',        blurb:'Step in. Feel the fizz, find your flavor, and follow the light.', c1:'#ff2a3a', c2:'#4a050c', dark:'#14020a', word:'WELCOME', cans:[] },
+  { id:'classic',title:'The Classic Heritage Lounge',     blurb:'The icon. The red. The original taste of happiness.',            c1:'#ff2a3a', c2:'#5c0610', dark:'#1a0206', word:'CLASSIC', cans:[{f:'classic',x:0}] },
+  { id:'modern', title:'The Zero & Light Modern Gallery', blurb:'All the taste, none of the sugar. Clean, crisp and modern.',      c1:'#cfe3ff', c2:'#2c2f36', dark:'#0a0b0e', word:'ZERO · LIGHT', cans:[{f:'zero',x:-2.3},{f:'light',x:2.3}] },
+  { id:'sprite', title:'The Sprite Citrus Garden',        blurb:'Crisp, cool and lime-bright, straight from the garden.',          c1:'#22e070', c2:'#075a28', dark:'#021408', word:'SPRITE', cans:[{f:'sprite',x:0}] },
+  { id:'fanta',  title:'The Fanta Tropical Zone',         blurb:'Sunny orange and green mango. A regional favorite.',               c1:'#ff9a1a', c2:'#7a3500', dark:'#1c0b00', word:'FANTA', cans:[{f:'orange',x:-2.3},{f:'mango',x:2.3}] },
+  { id:'finale', title:'The Grand Finale Vault',          blurb:'Lights down. The brand film is about to begin.',                  c1:'#ffd27a', c2:'#58101a', dark:'#12040a', word:'THE FILM', cans:[] }
+];
+const NZ=ZONES.length, RL=24, RW=16, RH=7.2, DOORW=4.6, DOORH=5.2;
+const zoneZ0 = i => -i*RL;           // front of room i
+const canZ   = i => -i*RL - 14;      // can pedestal depth in room i
+
+/* ---------------- renderer / scene ---------------- */
+const canvas=$('gl');
+let renderer;
+try { renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'}); }
+catch(e){ $('ldSub').textContent='Your browser could not start WebGL. Try Chrome, Edge or Safari with hardware acceleration on.'; throw e; }
+let pixelRatio=Math.min(devicePixelRatio||1,TOUR.maxPixelRatio);
+renderer.setPixelRatio(pixelRatio); renderer.setSize(innerWidth,innerHeight,false);
+renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.0;
+renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+const ANISO=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x050204); scene.fog=new THREE.FogExp2(0x050204,0.016);
+const camera=new THREE.PerspectiveCamera(42,innerWidth/innerHeight,.1,300);
+{ const pm=new THREE.PMREMGenerator(renderer); scene.environment=pm.fromScene(new RoomEnvironment(),0.04).texture; pm.dispose(); }
+
+await Promise.race([Promise.all([document.fonts.load('italic 600 80px Galada'),document.fonts.load('400 80px Galada'),document.fonts.load('900 80px Outfit'),document.fonts.load('700 30px Manrope')]),new Promise(r=>setTimeout(r,2200))]).catch(()=>{});
+setP(.12,'Polishing the floors'); await nextFrame();
+
+/* ---------------- helpers ---------------- */
+const mkCanvas=(w,h)=>{ const c=document.createElement('canvas'); c.width=w; c.height=h; return c; };
+function tex(c,srgb=true,repeat=false){ const t=new THREE.CanvasTexture(c); if(srgb) t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=ANISO; if(repeat){ t.wrapS=t.wrapT=THREE.RepeatWrapping; } return t; }
+function noiseTex(size,base,amp,repeatX,repeatY){
+  const c=mkCanvas(size,size), g=c.getContext('2d'), id=g.createImageData(size,size);
+  for(let i=0;i<size*size;i++){ const v=clamp(base+(Math.random()-.5)*amp,0,255); id.data[i*4]=id.data[i*4+1]=id.data[i*4+2]=v; id.data[i*4+3]=255; }
+  g.putImageData(id,0,0); const t=tex(c,false,true); t.repeat.set(repeatX||1,repeatY||1); return t;
+}
+const hex=(h)=>new THREE.Color(h);
+const dummyM=new THREE.Object3D();
+const pos=(o,x,y,z)=>{ o.position.set(x,y,z); return o; };
+
+/* =====================================================================
+   MATERIALS
+   ===================================================================== */
+const concreteN = noiseTex(512,128,90,6,3);
+const MAT = {
+  wall:   new THREE.MeshStandardMaterial({ color:0x15151a, roughness:.72, metalness:.1, roughnessMap:concreteN, bumpMap:concreteN, bumpScale:.6, envMapIntensity:.35 }),
+  wallHi: new THREE.MeshStandardMaterial({ color:0x24242b, roughness:.3, metalness:.6, envMapIntensity:.9 }),
+  ceil:   new THREE.MeshStandardMaterial({ color:0x0b0b0e, roughness:.9, metalness:0, envMapIntensity:.2 }),
+  floorOver:new THREE.MeshStandardMaterial({ color:0x050507, roughnessMap:noiseTex(512,105,110,10,50), roughness:1, bumpMap:noiseTex(512,128,40,30,150), bumpScale:.15, metalness:.55, transparent:true, opacity:.74, envMapIntensity:.8 }),
+  alu:    new THREE.MeshPhysicalMaterial({ color:0xdfe3ea, metalness:1, roughness:.2, envMapIntensity:1.5 }),
+  aluDark:new THREE.MeshPhysicalMaterial({ color:0x9aa0aa, metalness:1, roughness:.34, envMapIntensity:1.3 }),
+  black:  new THREE.MeshPhysicalMaterial({ color:0x07070a, metalness:.8, roughness:.18, clearcoat:1, clearcoatRoughness:.08, envMapIntensity:1.2 }),
+  gold:   new THREE.MeshStandardMaterial({ color:0xe4b868, metalness:1, roughness:.28, envMapIntensity:1.4 }),
+  velvet: new THREE.MeshStandardMaterial({ color:0x8b0c18, roughness:.95, metalness:0, envMapIntensity:.15, side:THREE.DoubleSide }),
+  glassIce:new THREE.MeshPhysicalMaterial({ color:0xeaf6ff, emissive:0x0d2233, emissiveIntensity:.9, metalness:0, roughness:.06, transmission:.88, thickness:.45, ior:1.31, attenuationColor:new THREE.Color(0xb6dcff), attenuationDistance:1.4, envMapIntensity:3, clearcoat:1, specularIntensity:1 }),
+  drop:   new THREE.MeshPhysicalMaterial({ color:0xffffff, metalness:0, roughness:.02, transparent:true, opacity:.42, clearcoat:1, clearcoatRoughness:0, envMapIntensity:3.2, specularIntensity:1 }),
+  stem:   new THREE.MeshStandardMaterial({ color:0x4f6b2c, roughness:.7 }),
+  leaf:   new THREE.MeshPhysicalMaterial({ color:0x2fa04e, roughness:.45, side:THREE.DoubleSide, clearcoat:.5, clearcoatRoughness:.4, envMapIntensity:.9 })
+};
+function emissive(color,intensity=2.2){ const m=new THREE.MeshBasicMaterial({color:new THREE.Color(color).multiplyScalar(intensity),toneMapped:false}); return m; }
+
+/* =====================================================================
+   THE SHOWROOM (one long corridor of six rooms)
+   ===================================================================== */
+const showroom=new THREE.Group(); scene.add(showroom);
+const TOTAL_L = NZ*RL+14, MIDZ = -(NZ*RL)/2+7;
+// floor: planar mirror + dark glossy overlay for a polished-concrete look
+let floorRef=null;
+try {
+  floorRef=new Reflector(new THREE.PlaneGeometry(60,TOTAL_L),{ textureWidth:Math.floor(innerWidth*.5*pixelRatio), textureHeight:Math.floor(innerHeight*.5*pixelRatio), color:0x8a8a90, clipBias:.003 });
+  floorRef.rotation.x=-Math.PI/2; floorRef.position.set(0,0,MIDZ); showroom.add(floorRef);
+} catch(e){ console.warn('Reflector skipped',e); }
+const floorOver=new THREE.Mesh(new THREE.PlaneGeometry(60,TOTAL_L),MAT.floorOver); floorOver.rotation.x=-Math.PI/2; floorOver.position.set(0,.004,MIDZ); floorOver.receiveShadow=true; showroom.add(floorOver);
+// open dark studio: no walls, just a wet reflective floor, fog, mist and soft backlight
+const poolTex=(()=>{ const c=mkCanvas(256,256),g=c.getContext('2d'),gr=g.createRadialGradient(128,128,0,128,128,128); gr.addColorStop(0,'rgba(255,255,255,.9)'); gr.addColorStop(.35,'rgba(255,255,255,.28)'); gr.addColorStop(1,'rgba(255,255,255,0)'); g.fillStyle=gr; g.fillRect(0,0,256,256); return tex(c); })();
+const mistBase=(()=>{ const c=mkCanvas(512,512),g=c.getContext('2d'); g.clearRect(0,0,512,512);
+  for(let i=0;i<150;i++){ const x=Math.random()*512,y=Math.random()*512,r=40+Math.random()*90,gr=g.createRadialGradient(x,y,0,x,y,r); gr.addColorStop(0,'rgba(255,255,255,'+(.05+Math.random()*.09)+')'); gr.addColorStop(1,'rgba(255,255,255,0)'); g.fillStyle=gr; for(const ox of [-512,0,512]) for(const oy of [-512,0,512]){ g.save(); g.translate(ox,oy); g.beginPath(); g.arc(x,y,r,0,6.283); g.fill(); g.restore(); } }
+  return c; })();
+const MISTS=[];
+ZONES.forEach((z,i)=>{
+  if(i===5) return; const cz=i===0?zoneZ0(0)-8:canZ(i), tint=new THREE.Color(z.c1).lerp(new THREE.Color(0xaad8ff),.55);
+  // backlight halo behind the can (cyclorama glow)
+  const halo=new THREE.Mesh(new THREE.PlaneGeometry(30,15),new THREE.MeshBasicMaterial({map:poolTex,color:new THREE.Color(z.c1).multiplyScalar(.5),transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false,fog:false})); pos(halo,0,4.4,cz-6); showroom.add(halo);
+  // floor light pool
+  const pool=new THREE.Mesh(new THREE.PlaneGeometry(13,13),new THREE.MeshBasicMaterial({map:poolTex,color:new THREE.Color(z.c1).multiplyScalar(.55),transparent:true,opacity:.5,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false})); pool.rotation.x=-Math.PI/2; pos(pool,0,.012,cz); showroom.add(pool);
+  // ghost word
+  if(i>0){ const c=mkCanvas(2048,400), g=c.getContext('2d'); g.font='900 300px Outfit, sans-serif'; g.textAlign='center'; g.lineWidth=2; g.strokeStyle='rgba(255,255,255,.55)'; g.strokeText(z.word,1024,300); const w=new THREE.Mesh(new THREE.PlaneGeometry(22,4.3),new THREE.MeshBasicMaterial({map:tex(c),transparent:true,opacity:.2,depthWrite:false,toneMapped:false})); pos(w,0,4.3,cz-7); showroom.add(w); }
+  // layered ground mist
+  [[.1,.26],[.5,.17],[1.0,.11]].forEach((l,k)=>{ const t=tex(mistBase,false,true); t.repeat.set(2.2,2.2); const mm=new THREE.Mesh(new THREE.PlaneGeometry(22,18),new THREE.MeshBasicMaterial({map:t,color:tint,transparent:true,opacity:l[1],depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false})); mm.rotation.x=-Math.PI/2; pos(mm,0,l[0],cz-1); showroom.add(mm); MISTS.push({t,k,i}); });
+});
+setP(.28,'Hanging the lights'); await nextFrame();
+
+/* =====================================================================
+   THE CAN (physically based aluminium can with printed label + condensation)
+   ===================================================================== */
+function labelTexture(f){
+  const W=2048,H=1024,c=mkCanvas(W,H),g=c.getContext('2d');
+  const bg=g.createLinearGradient(0,0,0,H); bg.addColorStop(0,f.c2); bg.addColorStop(.18,f.c1); bg.addColorStop(.82,f.c1); bg.addColorStop(1,f.c2); g.fillStyle=bg; g.fillRect(0,0,W,H);
+  for(let k=0;k<2;k++){
+    const cx=512+k*1024; g.save(); g.translate(cx,0);
+    // flowing white ribbon
+    g.beginPath(); g.moveTo(-512,610); g.bezierCurveTo(-300,420,-140,470,60,560); g.bezierCurveTo(250,650,380,640,512,520); g.lineTo(512,700); g.bezierCurveTo(380,800,230,820,50,720); g.bezierCurveTo(-130,630,-320,610,-512,790); g.closePath();
+    const rg=g.createLinearGradient(0,420,0,820); rg.addColorStop(0,'#ffffff'); rg.addColorStop(1,'#e9edf3'); g.fillStyle=rg; g.fill();
+    g.globalAlpha=.25; g.fillStyle=f.c2; g.beginPath(); g.moveTo(-512,640); g.bezierCurveTo(-300,450,-140,500,60,590); g.bezierCurveTo(250,680,380,670,512,550); g.lineTo(512,566); g.bezierCurveTo(380,690,250,696,60,606); g.bezierCurveTo(-140,516,-300,466,-512,656); g.fill(); g.globalAlpha=1;
+    // wordmark
+    g.textAlign='center'; g.shadowColor='rgba(0,0,0,.35)'; g.shadowBlur=14; g.shadowOffsetY=6; g.fillStyle=f.txt;
+    if(f.cursive){ g.font='400 158px Galada, cursive'; g.fillText(f.word,0,350); g.shadowBlur=0; g.shadowOffsetY=0; g.fillStyle='#ffffff'; g.font='700 40px Manrope, sans-serif'; g.fillText('®',300,250); }
+    else { g.font='900 178px Outfit, sans-serif'; g.fillText(f.word,0,372); g.shadowBlur=0; g.shadowOffsetY=0; }
+    // flavor line on the ribbon
+    g.fillStyle=(f.c1==='#d7dae0')?'#d4141f':f.c1; g.font='800 62px Manrope, sans-serif'; g.textAlign='center'; g.fillText(f.sub.split('').join(' '),20,672);
+    g.fillStyle='rgba(255,255,255,.85)'; g.font='600 34px Manrope, sans-serif'; g.fillText('BANGLADESH  ·  350 ml  ·  TASTE THE FEELING',0,900);
+    g.fillStyle='rgba(255,255,255,.4)'; g.font='500 20px Manrope, sans-serif'; g.fillText('RECYCLE ME  ·  DRINK COLD  ·  ENJOY RESPONSIBLY',0,960);
+    g.restore();
+  }
+  // subtle vertical brushed-metal sheen across the print
+  const sh=g.createLinearGradient(0,0,W,0); for(let i=0;i<=16;i++){ sh.addColorStop(i/16, i%2?'rgba(255,255,255,.05)':'rgba(0,0,0,.05)'); } g.fillStyle=sh; g.fillRect(0,0,W,H);
+  const t=tex(c); t.wrapS=THREE.RepeatWrapping; return t;
+}
+const aluProfile=[[0,.035],[.2,.035],[.245,0],[.292,.012],[.326,.06],[.33,.09],[.33,.095]];
+const shoulderProfile=[[.33,.99],[.322,1.03],[.3,1.09],[.282,1.14],[.272,1.168],[.268,1.19]];
+const rimProfile=[[.268,1.19],[.282,1.2],[.287,1.214],[.279,1.222],[.268,1.218],[.262,1.205],[.25,1.18],[.246,1.168],[0,1.168]];
+const lathe=(pts)=>new THREE.LatheGeometry(pts.map(p=>new THREE.Vector2(p[0],p[1])),96);
+const GEO = { bottom:lathe(aluProfile), rim:lathe(rimProfile), shoulder:lathe(shoulderProfile), body:new THREE.CylinderGeometry(.332,.332,.9,96,1,true) };
+const tabShape=(()=>{ const s=new THREE.Shape(); s.moveTo(-.095,-.03); s.lineTo(.095,-.03); s.absarc(.095,.03,.06,-Math.PI/2,Math.PI/2,false); s.lineTo(-.095,.09); s.absarc(-.095,.03,.06,Math.PI/2,Math.PI*1.5,false);
+  const h=new THREE.Path(); h.absellipse(.055,.03,.04,.026,0,Math.PI*2,true,0); s.holes.push(h); return s; })();
+const tabGeo=new THREE.ExtrudeGeometry(tabShape,{depth:.012,bevelEnabled:true,bevelThickness:.004,bevelSize:.004,bevelSegments:2});
+const dropGeo=new THREE.SphereGeometry(1,10,8);
+const labelCache={};
+function makeCan(key,opts={}){
+  const f=FLAVORS[key], g=new THREE.Group(); g.userData.key=key;
+  const proc=new THREE.Group(); g.add(proc);
+  labelCache[key]=labelCache[key]||labelTexture(f);
+  const label=new THREE.MeshPhysicalMaterial({ map:labelCache[key], metalness:.55, roughness:.34, clearcoat:.9, clearcoatRoughness:.12, envMapIntensity:1.0 });
+  const body=new THREE.Mesh(GEO.body,label); body.position.y=.54; body.rotation.y=-Math.PI/2; body.castShadow=true; proc.add(body);
+  const sh=new THREE.Mesh(GEO.shoulder,new THREE.MeshPhysicalMaterial({ color:new THREE.Color(f.c1), metalness:.7, roughness:.28, clearcoat:.8, envMapIntensity:1.2 })); sh.castShadow=true; proc.add(sh);
+  const bot=new THREE.Mesh(GEO.bottom,MAT.aluDark); proc.add(bot);
+  const rim=new THREE.Mesh(GEO.rim,MAT.alu); rim.castShadow=true; proc.add(rim);
+  const tab=new THREE.Mesh(tabGeo,MAT.alu); tab.rotation.x=-Math.PI/2; tab.position.set(-.02,1.17,.0); proc.add(tab);
+  const rivet=new THREE.Mesh(new THREE.CylinderGeometry(.022,.022,.02,12),MAT.aluDark); rivet.position.set(-.02,1.176,.0); proc.add(rivet);
+  if(!opts.noDrops){
+    const n=opts.drops||190, di=new THREE.InstancedMesh(dropGeo,MAT.drop,n), q=new THREE.Quaternion(), v=new THREE.Vector3(), s=new THREE.Vector3(), up=new THREE.Vector3(0,0,1);
+    for(let i=0;i<n;i++){ const a=rnd(0,Math.PI*2), y=rnd(.12,1.0), r=.334, sz=Math.pow(R(),2.2)*.013+.0035; v.set(Math.sin(a)*r,y,Math.cos(a)*r); q.setFromUnitVectors(up,new THREE.Vector3(Math.sin(a),0,Math.cos(a))); s.set(sz*(R()<.3?.8:1),sz*(1+R()*.9),sz*.5); dummyM.position.copy(v); dummyM.quaternion.copy(q); dummyM.scale.copy(s); dummyM.updateMatrix(); di.setMatrixAt(i,dummyM.matrix); }
+    di.frustumCulled=false; proc.add(di);
+  }
+  g.userData.proc=proc;
+  // optional: load the user's own .glb and swap it in
+  if(opts.glb && f.model){
+    new GLTFLoader().load(f.model,(gltf)=>{
+      const m=gltf.scene; const box=new THREE.Box3().setFromObject(m), size=box.getSize(new THREE.Vector3()), ctr=box.getCenter(new THREE.Vector3());
+      const sc=1.222/size.y; m.scale.setScalar(sc); m.position.set(-ctr.x*sc,-box.min.y*sc,-ctr.z*sc);
+      m.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.material=o.material.clone(); o.material.envMapIntensity=1.2;
+        if(f.tint==='silver'){ o.material.color&&o.material.color.offsetHSL(0,-1,.18); }
+        if(f.tint==='mango'){ o.material.color&&o.material.color.offsetHSL(-.2,.1,0); } } });
+      g.add(m); proc.visible=false;
+    },undefined,()=>{ /* file not found: keep the built-in can */ });
+  }
+  g.traverse(o=>{ if(o.isMesh&&!o.isInstancedMesh) o.castShadow=true; });
+  return g;
+}
+setP(.4,'Chilling the cans'); await nextFrame();
+
+/* ---------------- stages: pedestal + cans ---------------- */
+const stage=[]; // {zone,group,can,x,baseY}
+const CANS=[], CAN_SCALE=1.7;
+function makePedestal(color){
+  const g=new THREE.Group();
+  const base=new THREE.Mesh(new THREE.CylinderGeometry(1.15,1.25,.42,72),MAT.black); base.position.y=.21; base.receiveShadow=true; base.castShadow=true; g.add(base);
+  const top=new THREE.Mesh(new THREE.CylinderGeometry(1.0,1.0,.06,72),new THREE.MeshPhysicalMaterial({color:0x111116,metalness:.9,roughness:.12,clearcoat:1,envMapIntensity:1.6})); top.position.y=.45; top.receiveShadow=true; g.add(top);
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(1.17,.022,8,96),emissive(color,2.6)); ring.rotation.x=Math.PI/2; ring.position.y=.3; g.add(ring);
+  return g;
+}
+ZONES.forEach((z,i)=>{
+  z.cans.forEach(c=>{
+    const ped=makePedestal(z.c1); pos(ped,c.x,0,canZ(i)); showroom.add(ped);
+    const can=makeCan(c.f,{glb:true}); can.scale.setScalar(CAN_SCALE); pos(can,c.x,.48,canZ(i)); showroom.add(can);
+    CANS.push({zone:i,can,flavor:c.f,x:c.x,baseY:.48,ped});
+  });
+});
+// lobby: a ring of floating mini cans with a big wordmark
+const LOBBY=[];
+(function lobby(){
+  const grp=new THREE.Group(); pos(grp,0,0,zoneZ0(0)-6); showroom.add(grp);
+  const keys=['classic','sprite','orange','zero','light','mango'];
+  keys.forEach((k,n)=>{ const x=(n-2.5)*2.5+(n<3?-1.1:1.1), can=makeCan(k,{drops:70}); can.scale.setScalar(1.1); can.position.set(x,1.5+Math.sin(n*1.7)*.3,-4.5-Math.abs(n-2.5)*.5); can.rotation.z=Math.sin(n)*.3; grp.add(can); LOBBY.push({can,base:can.position.clone(),ph:n*1.3}); });
+  // glowing wordmark
+  const c=mkCanvas(2048,512), g=c.getContext('2d'); g.textAlign='center'; g.fillStyle='#ffffff'; g.shadowColor='#ff2a3a'; g.shadowBlur=60; g.font='400 330px Galada, cursive'; g.fillText('Coca-Cola',1024,330); g.shadowBlur=0; g.fillStyle='#fbcfe8'; g.font='700 56px Manrope, sans-serif'; g.fillText('B A N G L A D E S H',1024,440);
+  const sign=new THREE.Mesh(new THREE.PlaneGeometry(10,2.5),new THREE.MeshBasicMaterial({map:tex(c),transparent:true,toneMapped:false})); pos(sign,0,4.6,zoneZ0(0)-10.5); showroom.add(sign);
+})();
+
+/* ---------------- floating props with cursor repulsion ---------------- */
+function discTexture(inner,mid,rind,seg){
+  const c=mkCanvas(512,512),g=c.getContext('2d'); g.fillStyle='rgba(0,0,0,0)';
+  g.beginPath(); g.arc(256,256,250,0,6.283); g.fillStyle=rind; g.fill();
+  g.beginPath(); g.arc(256,256,226,0,6.283); g.fillStyle='#fff3cf'; g.fill();
+  g.beginPath(); g.arc(256,256,214,0,6.283); g.fillStyle=mid; g.fill();
+  for(let i=0;i<seg;i++){ const a0=i/seg*6.283+.04, a1=(i+1)/seg*6.283-.04; g.beginPath(); g.moveTo(256,256); g.arc(256,256,206,a0,a1); g.closePath(); const gr=g.createRadialGradient(256,256,10,256,256,206); gr.addColorStop(0,inner); gr.addColorStop(1,mid); g.fillStyle=gr; g.fill();
+    for(let k=0;k<26;k++){ const a=a0+(a1-a0)*R(), r=40+R()*160; g.fillStyle='rgba(255,255,255,.18)'; g.beginPath(); g.ellipse(256+Math.cos(a)*r,256+Math.sin(a)*r,3,12,a,0,6.283); g.fill(); } }
+  return tex(c);
+}
+const TEX_LIME=discTexture('#e7f58a','#c4e04c','#2f8f2a',9), TEX_ORANGE=discTexture('#ffd27a','#ffa31f','#e56a00',10);
+function sliceMesh(t,rind){
+  const g=new THREE.Group();
+  const top=new THREE.Mesh(new THREE.CircleGeometry(.5,48),new THREE.MeshPhysicalMaterial({map:t,roughness:.35,clearcoat:.6,clearcoatRoughness:.3,transparent:true,side:THREE.DoubleSide,envMapIntensity:1}));
+  const edge=new THREE.Mesh(new THREE.CylinderGeometry(.5,.5,.06,48,1,true),new THREE.MeshStandardMaterial({color:rind,roughness:.55,side:THREE.DoubleSide})); edge.rotation.x=Math.PI/2;
+  top.position.z=.031; const bot=top.clone(); bot.position.z=-.031; bot.rotation.y=Math.PI; g.add(top,bot,edge); return g;
+}
+function cherryMesh(){
+  const g=new THREE.Group(), m=new THREE.MeshPhysicalMaterial({color:0xa30a1d,roughness:.18,clearcoat:1,clearcoatRoughness:.05,envMapIntensity:1.6});
+  const a=new THREE.Mesh(new THREE.SphereGeometry(.2,28,22),m); a.scale.set(1,.96,1); g.add(a);
+  const curve=new THREE.CatmullRomCurve3([new THREE.Vector3(0,.18,0),new THREE.Vector3(.04,.34,.02),new THREE.Vector3(.14,.5,.04)]);
+  g.add(new THREE.Mesh(new THREE.TubeGeometry(curve,12,.012,6),MAT.stem));
+  const dent=new THREE.Mesh(new THREE.SphereGeometry(.05,10,8),new THREE.MeshStandardMaterial({color:0x6a0612,roughness:.6})); dent.position.set(0,.185,0); dent.scale.y=.4; g.add(dent); return g;
+}
+function mintLeaf(){
+  const s=new THREE.Shape(); s.moveTo(0,0); s.bezierCurveTo(.2,.12,.22,.42,0,.62); s.bezierCurveTo(-.22,.42,-.2,.12,0,0);
+  const geo=new THREE.ExtrudeGeometry(s,{depth:.012,bevelEnabled:true,bevelThickness:.01,bevelSize:.01,bevelSegments:2,curveSegments:14});
+  const m=new THREE.Mesh(geo,MAT.leaf); const g=new THREE.Group(); m.position.y=-.3; g.add(m);
+  const vein=new THREE.Mesh(new THREE.BoxGeometry(.01,.54,.004),new THREE.MeshBasicMaterial({color:0x9be0a0})); vein.position.set(0,0,.03); g.add(vein); return g;
+}
+function mangoMesh(){
+  const c=mkCanvas(256,256),g=c.getContext('2d'),gr=g.createLinearGradient(0,0,256,256); gr.addColorStop(0,'#e9f27a'); gr.addColorStop(.55,'#a8d12c'); gr.addColorStop(1,'#d8782a'); g.fillStyle=gr; g.fillRect(0,0,256,256);
+  for(let i=0;i<500;i++){ g.fillStyle=`rgba(${R()<.5?255:60},${R()<.5?240:120},40,${R()*.05})`; g.fillRect(R()*256,R()*256,2+R()*3,2+R()*3); }
+  const m=new THREE.Mesh(new THREE.SphereGeometry(.3,32,24),new THREE.MeshPhysicalMaterial({map:tex(c),roughness:.4,clearcoat:.5,clearcoatRoughness:.35,envMapIntensity:.9})); m.scale.set(1.15,.82,.85); return m;
+}
+function iceCube(){ const m=new THREE.Mesh(new RoundedBoxGeometry(.5,.5,.5,5,.07),MAT.glassIce); return m; }
+const PROPS=[];
+function addProps(zone,defs){
+  defs.forEach(d=>{ for(let n=0;n<d.n;n++){
+    const o=d.make(); const g=new THREE.Group(); g.add(o);
+    const ang=rnd(0,Math.PI*2), rad=rnd(3.6,6.8);
+    const bx=Math.cos(ang)*rad*1.15, by=rnd(.8,4.9), bz=canZ(zone)+Math.sin(ang)*rad*.55 + rnd(-1.2,.6);
+    const sc=d.s*rnd(.8,1.3); g.scale.setScalar(sc);
+    g.position.set(bx,by,bz); g.rotation.set(rnd(0,6),rnd(0,6),rnd(0,6)); showroom.add(g);
+    PROPS.push({g,zone,base:new THREE.Vector3(bx,by,bz),off:new THREE.Vector3(),ph:rnd(0,6.28),dur:rnd(5,10),spin:new THREE.Vector3(rnd(-.3,.3),rnd(-.4,.4),rnd(-.2,.2))});
+  } });
+}
+addProps(1,[{n:6,s:1,make:cherryMesh},{n:6,s:.75,make:iceCube}]);
+addProps(2,[{n:8,s:.8,make:iceCube}]);
+addProps(3,[{n:5,s:1.7,make:()=>sliceMesh(TEX_LIME,0x2f8f2a)},{n:8,s:1.6,make:mintLeaf},{n:3,s:.7,make:iceCube}]);
+addProps(4,[{n:5,s:1.7,make:()=>sliceMesh(TEX_ORANGE,0xe56a00)},{n:4,s:1.5,make:mangoMesh},{n:3,s:.7,make:iceCube}]);
+setP(.56,'Slicing the limes'); await nextFrame();
+
+/* ---------------- fizz (rising bubbles) + dust ---------------- */
+const fizzMat=new THREE.ShaderMaterial({ transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,
+  uniforms:{uTime:{value:0},uScale:{value:600}},
+  vertexShader:`attribute float aPh; uniform float uTime; uniform float uScale; varying float vA;
+   void main(){ vec3 p=position; float h=mod(uTime*(.25+aPh*.5)+aPh*20.,7.5); p.y=h; p.x+=sin(uTime*.8+aPh*30.)*.25; p.z+=cos(uTime*.7+aPh*17.)*.25; vec4 mv=modelViewMatrix*vec4(p,1.); gl_PointSize=clamp((.05+aPh*.1)*uScale/max(.3,-mv.z),1.,34.); vA=smoothstep(0.,.8,h)*(1.-smoothstep(5.5,7.5,h))*(.3+aPh*.5); gl_Position=projectionMatrix*mv; }`,
+  fragmentShader:`varying float vA; void main(){ vec2 d=gl_PointCoord-.5; float r=length(d)*2.; float ring=smoothstep(.55,.85,r)*(1.-smoothstep(.9,1.,r)); float hl=smoothstep(.35,0.,length(d-vec2(-.18,-.18))); float a=(ring*.7+hl*.8)*vA; gl_FragColor=vec4(vec3(1.)*a,a); }`});
+function fizzField(zone,w,d){
+  const n=reduced?90:260, p=new Float32Array(n*3), ph=new Float32Array(n);
+  for(let i=0;i<n;i++){ p.set([rnd(-w,w),0,rnd(-d,d)],i*3); ph[i]=R(); }
+  const geo=new THREE.BufferGeometry(); geo.setAttribute('position',new THREE.BufferAttribute(p,3)); geo.setAttribute('aPh',new THREE.BufferAttribute(ph,1));
+  const pts=new THREE.Points(geo,fizzMat); pts.frustumCulled=false; pts.position.set(0,0,zone===0?zoneZ0(0)-5:canZ(zone)); showroom.add(pts); return pts;
+}
+for(let i=0;i<NZ-1;i++) fizzField(i,5.2,3.2);
+fizzField(5,6,5);
+const dustMat=new THREE.ShaderMaterial({ transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,uniforms:{uTime:{value:0},uScale:{value:600}},
+  vertexShader:`attribute float aPh; uniform float uTime; uniform float uScale; varying float vA; void main(){ vec3 p=position; p.x+=sin(uTime*.2+aPh*20.)*.6; p.y+=sin(uTime*.15+aPh*31.)*.4; p.z+=cos(uTime*.18+aPh*17.)*.6; vec4 mv=modelViewMatrix*vec4(p,1.); vA=(.3+.7*fract(aPh*13.7))*(.6+.4*sin(uTime+aPh*60.)); gl_PointSize=clamp(.05*uScale/max(.3,-mv.z),1.,6.); gl_Position=projectionMatrix*mv; }`,
+  fragmentShader:`varying float vA; void main(){ float r=length(gl_PointCoord-.5)*2.; float a=smoothstep(1.,0.,r)*vA*.5; gl_FragColor=vec4(vec3(1.,.9,.75)*a,a); }`});
+{ const n=reduced?300:900, p=new Float32Array(n*3), ph=new Float32Array(n); for(let i=0;i<n;i++){ p.set([rnd(-7,7),rnd(.3,6.5),rnd(-NZ*RL+2,11)],i*3); ph[i]=R(); }
+  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(p,3)); g.setAttribute('aPh',new THREE.BufferAttribute(ph,1)); const d=new THREE.Points(g,dustMat); d.frustumCulled=false; scene.add(d); }
+
+/* =====================================================================
+   FINALE: cinema wall, curtains, red carpet, video screen
+   ===================================================================== */
+const SCREEN={ mat:null, mesh:null, ph:null, w:9, h:5.06, aspect:16/9, canvas:null, tex:null };
+(function finale(){
+  const zf=zoneZ0(5)-RL;  // back wall z
+  const wall=new THREE.Mesh(new THREE.BoxGeometry(RW+1,RH,.5),MAT.wall); pos(wall,0,RH/2,zf-.25); showroom.add(wall);
+  [-1,1].forEach(s=>{ const w=new THREE.Mesh(new THREE.BoxGeometry(.5,RH,RL),MAT.wall); pos(w,s*(RW/2+.25),RH/2,zoneZ0(5)-RL/2); showroom.add(w); });
+  const fc=new THREE.Mesh(new THREE.BoxGeometry(RW+1,.5,RL),MAT.ceil); pos(fc,0,RH+.25,zoneZ0(5)-RL/2); showroom.add(fc);
+  // carpet
+  const carpet=new THREE.Mesh(new THREE.PlaneGeometry(5,RL-1),new THREE.MeshStandardMaterial({color:0x7d0b16,roughness:.95,bumpMap:concreteN,bumpScale:1.2})); carpet.rotation.x=-Math.PI/2; pos(carpet,0,.014,zoneZ0(5)-RL/2); carpet.receiveShadow=true; showroom.add(carpet);
+  [-2.5,2.5].forEach(x=>{ const l=new THREE.Mesh(new THREE.BoxGeometry(.08,.02,RL-1),MAT.gold); pos(l,x,.02,zoneZ0(5)-RL/2); showroom.add(l); });
+  // curtains
+  [-1,1].forEach(s=>{ const geo=new THREE.PlaneGeometry(3.6,RH-.3,48,1), p=geo.attributes.position; for(let i=0;i<p.count;i++){ p.setZ(i,Math.sin(p.getX(i)*5.2)*.2); } geo.computeVertexNormals(); const c=new THREE.Mesh(geo,MAT.velvet); pos(c,s*6.4,RH/2-.1,zf+.5); showroom.add(c); });
+  const valance=new THREE.Mesh(new THREE.BoxGeometry(RW-.8,.7,.5),MAT.velvet); pos(valance,0,RH-.4,zf+.4); showroom.add(valance);
+  // screen
+  const ph=mkCanvas(1280,720), g=ph.getContext('2d'), rg=g.createRadialGradient(640,360,20,640,360,640); rg.addColorStop(0,'#2a0a12'); rg.addColorStop(1,'#050204'); g.fillStyle=rg; g.fillRect(0,0,1280,720);
+  g.textAlign='center'; g.fillStyle='#ffd27a'; g.font='900 64px Outfit, sans-serif'; g.fillText('THE BRAND FILM',640,330); g.fillStyle='rgba(255,255,255,.6)'; g.font='600 30px Manrope, sans-serif'; g.fillText(CONFIG.finalVideo,640,400);
+  SCREEN.ph=tex(ph); SCREEN.canvas=mkCanvas(1280,720); SCREEN.canvas.getContext('2d').fillStyle='#000'; SCREEN.canvas.getContext('2d').fillRect(0,0,1280,720); SCREEN.tex=tex(SCREEN.canvas);
+  SCREEN.mat=new THREE.MeshBasicMaterial({map:SCREEN.ph,toneMapped:false});
+  const grp=new THREE.Group(); pos(grp,0,3.55,zf+.06); showroom.add(grp); SCREEN.group=grp;
+  SCREEN.mesh=new THREE.Mesh(new THREE.PlaneGeometry(1,1),SCREEN.mat); grp.add(SCREEN.mesh);
+  SCREEN.frame=new THREE.Group(); grp.add(SCREEN.frame);
+  const fm=MAT.gold; SCREEN.bars=[0,1,2,3].map(()=>{ const b=new THREE.Mesh(new THREE.BoxGeometry(1,1,.14),fm); SCREEN.frame.add(b); return b; });
+  SCREEN.glow=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({map:poolTex,color:0xffd27a,transparent:true,opacity:.35,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false})); SCREEN.glow.position.z=-.04; grp.add(SCREEN.glow);
+})();
+function layoutScreen(){
+  const maxH=4.8, maxW=9.2; let h=maxH, w=h*SCREEN.aspect; if(w>maxW){ w=maxW; h=w/SCREEN.aspect; }
+  SCREEN.mesh.scale.set(w,h,1); SCREEN.glow.scale.set(w*2.2,h*2.2,1); const t=.18;
+  const [top,bot,l,r]=SCREEN.bars; top.scale.set(w+t*2,t,1); top.position.set(0,h/2+t/2,0); bot.scale.set(w+t*2,t,1); bot.position.set(0,-h/2-t/2,0); l.scale.set(t,h,1); l.position.set(-w/2-t/2,0,0); r.scale.set(t,h,1); r.position.set(w/2+t/2,0,0);
+  SCREEN.group.position.y=Math.max(h/2+.9,3.3);
+}
+layoutScreen();
+setP(.7,'Rolling the red carpet'); await nextFrame();
+
+/* ---------------- lights ---------------- */
+const hemi=new THREE.HemisphereLight(0x8a90b0,0x1a0d10,.35); scene.add(hemi);
+const zoneLights=ZONES.map((z,i)=>{ const l=new THREE.PointLight(new THREE.Color(z.c1),0,22,2); l.position.set(0,4.2,i===0?zoneZ0(0)-8:(i===5?zoneZ0(5)-RL+10:canZ(i)-3.8)); scene.add(l); return l; });
+const key=new THREE.SpotLight(0xffffff,0,28,.5,.55,1.6); key.position.set(0,8,0); key.castShadow=true; key.shadow.mapSize.set(1024,1024); key.shadow.bias=-.0004; key.shadow.radius=4; scene.add(key); scene.add(key.target);
+const rim=new THREE.PointLight(0xffffff,0,14,2); scene.add(rim);
+
+/* ---------------- post-processing ---------------- */
+const composer=new EffectComposer(renderer); composer.setPixelRatio(pixelRatio); composer.setSize(innerWidth,innerHeight);
+composer.addPass(new RenderPass(scene,camera));
+const bloom=new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),.3,.6,1.0); composer.addPass(bloom);
+composer.addPass(new OutputPass());
+
+/* =====================================================================
+   CAMERA PATH + SCROLL
+   ===================================================================== */
+const V=(x,y,z)=>new THREE.Vector3(x,y,z);
+const camPts=[V(0,1.9,zoneZ0(0)+9)], lookPts=[V(0,2.5,zoneZ0(0)-8)];
+for(let i=1;i<NZ;i++){
+  if(i<5){ camPts.push(V(0,2.3,canZ(i)+19),V(0,1.75,canZ(i)+8.4)); lookPts.push(V(0,1.9,canZ(i)+2),V(0,1.75,canZ(i))); }
+  else { camPts.push(V(0,2.2,zoneZ0(5)-RL+25),V(0,1.8,zoneZ0(5)-RL+11)); lookPts.push(V(0,3.4,zoneZ0(5)-RL),V(0,3.4,zoneZ0(5)-RL)); }
+}
+const camCurve=new THREE.CatmullRomCurve3(camPts,false,'centripetal'), lookCurve=new THREE.CatmullRomCurve3(lookPts,false,'centripetal');
+const NP=camPts.length;
+const REST=[0,2,4,6,8,10];
+const st={u:0};
+const tl=gsap.timeline({paused:true});
+tl.to(st,{duration:.5});
+for(let i=1;i<NZ;i++){ tl.to(st,{u:REST[i],duration:i===1?2.6:3.0,ease:'power2.inOut'}); tl.addLabel('z'+i); tl.to(st,{duration:i===NZ-1?1.2:.9}); }
+const spacer=$('scrollSpace'); spacer.style.height=Math.round(tl.duration()*TOUR.vhPerSecond+100)+'vh';
+const trig=ScrollTrigger.create({ trigger:spacer,start:'top top',end:'bottom bottom',scrub:reduced?.2:1.1,animation:tl });
+function goZone(i){ const t=i===0?0:tl.labels['z'+i]; const y=trig.start+(t/tl.duration())*(trig.end-trig.start); window.scrollTo({top:y,behavior:reduced?'auto':'smooth'}); firstInteraction(); }
+window.addEventListener('scroll',()=>{ if(scrollY>4) firstInteraction(); },{passive:true});
+
+/* ---------------- HUD ---------------- */
+const rail=$('rail'), railBtns=[], nav=$('nav'), navBtns={};
+ZONES.forEach((z,i)=>{ const b=document.createElement('button'); b.setAttribute('aria-label',z.title); b.innerHTML=`<i></i><span>${z.title.replace('The ','')}</span>`; b.onclick=()=>goZone(i); rail.appendChild(b); railBtns.push(b); });
+Object.keys(FLAVORS).forEach(k=>{ const b=document.createElement('button'); b.textContent=FLAVORS[k].name; b.onclick=()=>{ goZone(FLAVORS[k].zone); focusCan(k); }; nav.appendChild(b); navBtns[k]=b; });
+let curZone=-1, swapT=0, focusFlavor=null, focusX=0, focusXT=0;
+function setZone(i){
+  if(i===curZone) return; const first=curZone<0; curZone=i; const z=ZONES[i];
+  railBtns.forEach((b,k)=>b.classList.toggle('on',k===i));
+  Object.keys(navBtns).forEach(k=>navBtns[k].classList.toggle('active',FLAVORS[k].zone===i));
+  const apply=()=>{ $('cIdx').textContent='Zone 0'+(i+1); $('cNum').textContent=(i+1)+' / '+NZ; $('cTitle').textContent=z.title; $('cBlurb').textContent=z.blurb; $('card').classList.remove('swapping'); };
+  if(first) apply(); else { $('card').classList.add('swapping'); clearTimeout(swapT); swapT=setTimeout(apply,300); }
+  gsap.to(document.documentElement,{'--t1':z.c1,'--t2':z.c2,'--tdark':z.dark,duration:1.4,ease:'power2.inOut'});
+  if(i!==2&&i!==4) focusCan(null);
+}
+function focusCan(k){
+  focusFlavor=k; const c=k?CANS.find(o=>o.flavor===k):null; focusXT=c?c.x*.28:0;
+  CANS.forEach(o=>{ const on=!k||o.flavor===k; gsap.to(o.can.scale,{x:CAN_SCALE*(k&&on?1.1:(k&&!on?.92:1)),y:CAN_SCALE*(k&&on?1.1:(k&&!on?.92:1)),z:CAN_SCALE*(k&&on?1.1:(k&&!on?.92:1)),duration:.8,ease:'back.out(1.4)'}); });
+  Object.keys(navBtns).forEach(f=>navBtns[f].classList.toggle('active',FLAVORS[f].zone===curZone&&(!k||k===f)));
+}
+const toastEl=$('toast'); let toastT=0;
+function toast(m,ms){ toastEl.textContent=m; toastEl.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>toastEl.classList.remove('show'),ms||4500); }
+
+/* ---------------- audio ---------------- */
+const bgm=$('bgm'), sndBtn=$('soundBtn'); let musicWanted=true, playing=false, bgmBad=false, tv=TOUR.bgmVolume, cv=0, scrolledOnce=false, entered=false;
+bgm.volume=0; if(CONFIG.bgmAudio) bgm.src=CONFIG.bgmAudio; else bgmBad=true;
+bgm.addEventListener('error',()=>{ bgmBad=true; sndBtn.classList.add('unavailable'); });
+bgm.addEventListener('playing',()=>{ playing=true; sndBtn.classList.remove('muted'); });
+bgm.addEventListener('pause',()=>{ playing=false; if(!musicWanted) sndBtn.classList.add('muted'); });
+function startMusic(){ if(!musicWanted||bgmBad||playing) return; const p=bgm.play(); if(p&&p.catch) p.catch(()=>{}); }
+function firstInteraction(){ scrolledOnce=true; document.body.classList.add('scrolled'); startMusic(); }
+['click','touchend','keyup','pointerup'].forEach(ev=>window.addEventListener(ev,()=>{ if(scrolledOnce||entered){ startMusic(); unmute(); } },{passive:true}));
+sndBtn.addEventListener('click',e=>{ e.stopPropagation(); if(playing){ musicWanted=false; bgm.pause(); sndBtn.classList.add('muted'); } else { musicWanted=true; bgm.play().catch(()=>{}); } });
+document.addEventListener('visibilitychange',()=>{ if(document.hidden){ if(playing) bgm.pause(); } else if(musicWanted&&scrolledOnce) bgm.play().catch(()=>{}); });
+
+/* ---------------- finale film + modal ---------------- */
+const vid=document.createElement('video'); vid.playsInline=true; vid.setAttribute('playsinline',''); vid.preload='auto'; vid.muted=false; vid.loop=false; vid.crossOrigin='anonymous';
+let vStarted=false,vDone=false,inFinal=false,vMissing=false,mOpen=false,missT=0,vReady=false;
+if(CONFIG.finalVideo){
+  vid.addEventListener('loadedmetadata',()=>{ SCREEN.aspect=vid.videoWidth/vid.videoHeight||16/9; layoutScreen(); });
+  vid.addEventListener('loadeddata',()=>{ vReady=true; });
+  vid.addEventListener('error',()=>{ if(vid.crossOrigin){ vid.removeAttribute('crossorigin'); vid.src=CONFIG.finalVideo; vid.load(); } else vMissing=true; });
+  vid.src=CONFIG.finalVideo;
+} else vMissing=true;
+function unmute(){ if(vid.muted&&vStarted&&!vDone){ vid.muted=false; vid.volume=1; tv=TOUR.bgmDucked; } }
+function playFilm(){
+  if(vDone) return; if(vStarted&&!vid.paused) return; vStarted=true;
+  if(vMissing){ toast('Add your film as “'+CONFIG.finalVideo+'” next to index.html ♥',5200); clearTimeout(missT); missT=setTimeout(()=>{ if(inFinal) endFilm(); },5800); return; }
+  vid.muted=false; vid.volume=1; const p=vid.play();
+  if(p&&p.then) p.then(()=>{ tv=TOUR.bgmDucked; SCREEN.mat.map=SCREEN.tex; SCREEN.mat.needsUpdate=true; }).catch(()=>{ vid.muted=true; const q=vid.play(); if(q&&q.then) q.then(()=>{ SCREEN.mat.map=SCREEN.tex; SCREEN.mat.needsUpdate=true; toast('Tap anywhere to turn the film sound on 🔊',5000); }).catch(()=>{ vStarted=false; toast('Tap anywhere to play the film ♥'); }); });
+}
+function pauseFilm(){ clearTimeout(missT); if(!vid.paused) vid.pause(); tv=TOUR.bgmVolume; if(!vDone) vStarted=false; }
+vid.addEventListener('ended',()=>endFilm());
+function endFilm(){ vDone=true; vStarted=false; tv=TOUR.bgmVolume; showModal(); }
+window.addEventListener('click',()=>{ if(inFinal&&!vStarted&&!vDone&&!mOpen) playFilm(); },{passive:true});
+window.addEventListener('touchend',()=>{ if(inFinal&&!vStarted&&!vDone&&!mOpen) playFilm(); },{passive:true});
+const modal=$('modal'), mCard=$('mCard');
+function showModal(){
+  if(mOpen) return; mOpen=true; document.documentElement.style.overflow='hidden'; modal.classList.add('open'); modal.setAttribute('aria-hidden','false');
+  gsap.fromTo(mCard,{opacity:0,scale:.7,y:40},{opacity:1,scale:1,y:0,duration:1.4,ease:'elastic.out(1,.65)',delay:.25});
+  gsap.from('#mCard .ico,#mCard h3,#mCard p,#mCard .btn',{opacity:0,y:16,duration:.8,stagger:.14,delay:.6});
+  for(let i=0;i<26;i++){ const b=document.createElement('div'); b.className='bub'; const s=rnd(14,46); b.style.cssText=`left:${rnd(0,100)}%;width:${s}px;height:${s}px;animation-duration:${rnd(4,8)}s;z-index:41`; modal.appendChild(b); setTimeout(()=>b.remove(),9000); }
+}
+function hideModal(){ mOpen=false; modal.classList.remove('open'); modal.setAttribute('aria-hidden','true'); document.documentElement.style.overflow=''; gsap.set(mCard,{opacity:0}); }
+$('mReplay').onclick=()=>{ hideModal(); vDone=false; vStarted=false; try{ vid.currentTime=0; }catch(e){} setTimeout(playFilm,500); };
+$('mStay').onclick=hideModal;
+$('mTop').onclick=()=>{ hideModal(); vDone=false; vStarted=false; pauseFilm(); try{ vid.currentTime=0; }catch(e){} SCREEN.mat.map=SCREEN.ph; SCREEN.mat.needsUpdate=true; goZone(0); };
+window.addEventListener('keydown',e=>{ if(e.key==='Escape'&&mOpen) hideModal(); });
+function paintVideo(){
+  if(vid.readyState<2||!vid.videoWidth) return; const c=SCREEN.canvas, g=c.getContext('2d'); const W=c.width,H=c.height, s=Math.min(W/vid.videoWidth,H/vid.videoHeight), w=vid.videoWidth*s, h=vid.videoHeight*s;
+  try{ g.fillStyle='#000'; g.fillRect(0,0,W,H); g.drawImage(vid,(W-w)/2,(H-h)/2,w,h); SCREEN.tex.needsUpdate=true; }catch(e){}
+}
+
+/* ---------------- pointer: look-around, cursor repel, tilt ---------------- */
+let mouse={x:0,y:0,px:-999,py:-999}, cm={x:0,y:0}, yawD=0,pitchD=0,tYaw=0,tPitch=0,drag=null;
+window.addEventListener('pointermove',e=>{ mouse.x=e.clientX/innerWidth-.5; mouse.y=e.clientY/innerHeight-.5; mouse.px=e.clientX; mouse.py=e.clientY; if(drag){ const dx=e.clientX-drag.x, dy=e.clientY-drag.y; if(!drag.mode&&Math.hypot(dx,dy)>8) drag.mode=Math.abs(dx)>Math.abs(dy)*1.2?'look':'scroll'; if(drag.mode==='look'){ tYaw=clamp(-dx*.0016,-.7,.7); tPitch=clamp(-dy*.0008,-.2,.2); } } },{passive:true});
+canvas.addEventListener('pointerdown',e=>{ drag={x:e.clientX,y:e.clientY,mode:null}; });
+const endDrag=()=>{ drag=null; tYaw=0; tPitch=0; }; window.addEventListener('pointerup',endDrag); window.addEventListener('pointercancel',endDrag);
+const ray=new THREE.Raycaster(), ndc=new THREE.Vector2(), plane=new THREE.Plane(new THREE.Vector3(0,0,1),0), hitP=new THREE.Vector3();
+
+/* ---------------- resize + adaptive quality ---------------- */
+function resize(){
+  const w=innerWidth,h=innerHeight; renderer.setPixelRatio(pixelRatio); renderer.setSize(w,h,false); composer.setPixelRatio(pixelRatio); composer.setSize(w,h);
+  camera.aspect=w/h; camera.fov=w/h>=1.3?42:lerp(66,42,clamp((w/h-.45)/.85,0,1)); camera.updateProjectionMatrix();
+  const sc=h*pixelRatio*.9; fizzMat.uniforms.uScale.value=sc; dustMat.uniforms.uScale.value=sc;
+  if(floorRef){ const rt=floorRef.getRenderTarget(); rt.setSize(Math.floor(w*.5*pixelRatio),Math.floor(h*.5*pixelRatio)); }
+}
+window.addEventListener('resize',resize); resize();
+let ftAcc=0,ftN=0,lastQ=0;
+function adaptQuality(dt,now){ ftAcc+=dt; ftN++; if(ftN>=100&&now-lastQ>2){ const avg=ftAcc/ftN*1000; ftAcc=0; ftN=0; lastQ=now; if(avg>26&&pixelRatio>1){ pixelRatio=Math.max(1,pixelRatio-.25); resize(); } else if(avg>32&&pixelRatio>.75){ pixelRatio=Math.max(.75,pixelRatio-.15); resize(); } } }
+
+/* =====================================================================
+   MAIN LOOP
+   ===================================================================== */
+const _p=new THREE.Vector3(), _l=new THREE.Vector3(), _d=new THREE.Vector3();
+let last=performance.now(), headT=0, prevU=0, bob=0;
+function frame(now){
+  requestAnimationFrame(frame);
+  const dt=Math.min(.05,(now-last)/1000); last=now; const t=now/1000;
+  cm.x+=(mouse.x-cm.x)*.05; cm.y+=(mouse.y-cm.y)*.05; yawD+=(tYaw-yawD)*.12; pitchD+=(tPitch-pitchD)*.12; focusX+=(focusXT-focusX)*.06;
+  const u=clamp(st.u,0,NP-1), tt=u/(NP-1); camCurve.getPoint(tt,_p); lookCurve.getPoint(tt,_l);
+  const speed=Math.abs(u-prevU)/Math.max(dt,.001); prevU=u; bob+=(clamp(speed*.9,0,1)-bob)*.1; headT+=dt*(5+speed*5);
+  const bobY=reduced?0:Math.sin(headT)*.035*bob;
+  camera.position.set(_p.x+cm.x*.35+focusX,_p.y+bobY-cm.y*.15,_p.z); _l.x+=focusX*.6;
+  camera.lookAt(_l); camera.rotateY(yawD); camera.rotateX(pitchD);
+  // zone position (fractional)
+  setZone(clamp(Math.floor((-_p.z+4)/RL),0,NZ-1));
+  document.body.classList.toggle('toured',-_p.z>3);
+  const cz=-_p.z, near=i=>Math.abs((i===0?-6:canZ(i)*-1)-cz)<30;
+  // lights follow the camera: key spot + zone fills
+  zoneLights.forEach((l,i)=>{ const d=Math.abs((i===0?zoneZ0(0)-6:canZ(i))-_p.z); l.intensity=lerp(0,i===0?70:55,1-smooth(7,26,d)); });
+  let kz=0,kd=1e9; ZONES.forEach((z,i)=>{ const d=Math.abs((i===0?zoneZ0(0)-6:canZ(i))-_p.z); if(d<kd){ kd=d; kz=i; } });
+  const kx=ZONES[kz].cans.length===2&&focusFlavor?(CANS.find(o=>o.flavor===focusFlavor)||{x:0}).x:0, kcz=kz===0?zoneZ0(0)-6:(kz===5?zoneZ0(5)-RL+6:canZ(kz));
+  key.position.lerp(_d.set(kx*.4,8.2,kcz+4.5),.08); key.target.position.lerp(_d.set(kx,1.4,kcz),.08); key.color.lerp(new THREE.Color(ZONES[kz].c1==='#cfe3ff'?'#ffffff':'#fff4e8'),.05);
+  key.intensity=lerp(key.intensity,kz===0?60:260,.05);
+  rim.position.set(0,2.6,kcz-3); rim.color.lerp(new THREE.Color(ZONES[kz].c1),.06); rim.intensity=lerp(rim.intensity,kz===0?10:60,.05);
+  // cans tilt toward the cursor + idle float
+  CANS.forEach(o=>{ const vis=Math.abs(o.zone*RL+(-_p.z)*0)-0; const d=Math.abs(canZ(o.zone)-_p.z); if(d>34) return; o.can.rotation.y+=((cm.x*.9+Math.sin(t*.4+o.zone)*.12)-(o.can.rotation.y))*.06; o.can.rotation.x+=((cm.y*.18)-(o.can.rotation.x))*.06; o.can.position.y=o.baseY+(reduced?0:Math.sin(t*1.2+o.zone)*.04); });
+  LOBBY.forEach((o,i)=>{ o.can.position.y=o.base.y+Math.sin(t*.9+o.ph)*.18; o.can.rotation.y=t*.4+o.ph; });
+  // props: float + repel from cursor
+  ndc.set(mouse.x*2,-mouse.y*2); ray.setFromCamera(ndc,camera);
+  for(let i=0;i<PROPS.length;i++){
+    const p=PROPS[i], d=Math.abs(canZ(p.zone)-_p.z); const vis=d<30; p.g.visible=vis; if(!vis) continue;
+    plane.constant=-canZ(p.zone); ray.ray.intersectPlane(plane,hitP);
+    let tx=0,ty=0,sm=1; if(hitP){ const dx=p.base.x-hitP.x, dy=p.base.y-hitP.y, dist=Math.hypot(dx,dy)||1; if(dist<3.2&&mouse.px>-900){ const f=(3.2-dist)/3.2; tx=dx/dist*f*1.8; ty=dy/dist*f*1.8; sm=1+f*5; } }
+    p.off.x+=(tx-p.off.x)*.1; p.off.y+=(ty-p.off.y)*.1;
+    const ph=(t+i*.7)*(6.283/p.dur);
+    p.g.position.set(p.base.x+p.off.x, p.base.y+p.off.y+Math.sin(ph)*.18, p.base.z);
+    p.g.rotation.x+=p.spin.x*dt*sm; p.g.rotation.y+=p.spin.y*dt*sm; p.g.rotation.z+=p.spin.z*dt*sm;
+  }
+  // finale
+  const nowFinal=_p.z<zoneZ0(5)-RL+14;
+  if(nowFinal&&!inFinal){ inFinal=true; if(!vDone) playFilm(); }
+  else if(!nowFinal&&inFinal){ inFinal=false; if(_p.z>zoneZ0(5)-RL+20){ pauseFilm(); vDone=false; vStarted=false; SCREEN.mat.map=SCREEN.ph; SCREEN.mat.needsUpdate=true; } }
+  if(vStarted&&!vid.paused){ paintVideo(); SCREEN.glow.material.opacity=.3+Math.sin(t*7)*.02; }
+  fizzMat.uniforms.uTime.value=t; dustMat.uniforms.uTime.value=t;
+  cv+=(tv-cv)*(1-Math.exp(-dt*1.6)); bgm.volume=clamp(cv,0,1);
+  adaptQuality(dt,t);
+  composer.render();
+}
+function smooth(a,b,x){ const t=clamp((x-a)/(b-a),0,1); return t*t*(3-2*t); }
+
+/* ---------------- start: loader + Enter (unlocks sound) ---------------- */
+setP(.9,'Warming up the spotlights');
+tl.progress(0); ScrollTrigger.refresh();
+composer.render(); await nextFrame();
+requestAnimationFrame(frame);
+window.__ccReady=true;
+setTimeout(()=>{
+  setP(1,'Ready. Turn your sound on');
+  const b=document.createElement('button'); b.className='enter'; b.textContent='Enter'; b.setAttribute('aria-label','Enter the experience'); $('loader').firstElementChild.appendChild(b);
+  const go=()=>{ if(entered) return; entered=true; scrolledOnce=true;
+    if(!bgmBad){ const p=bgm.play(); if(p&&p.catch) p.catch(()=>{}); } else toast('Could not load “'+CONFIG.bgmAudio+'”. Check the file name and that it sits next to index.html.',7000);
+    $('loader').classList.add('done'); document.body.classList.add('ready');
+    if(isFile) setTimeout(()=>toast('Tip: open with VS Code “Live Server” so your 3D cans and film can load ♥',7000),3500);
+    setTimeout(()=>{ const l=$('loader'); l&&l.remove(); },2400); };
+  b.addEventListener('click',go); try{ b.focus({preventScroll:true}); }catch(e){}
+},600);
+</script>
+<script>
+/* if the 3D engine (three.js) could not be downloaded, say so instead of hanging */
+setTimeout(function(){ if(!window.__ccReady){ var s=document.getElementById('ldSub'); if(s) s.textContent='Still loading… if this stays, check your internet connection and refresh.'; } },15000);
+</script>
+</body>
+</html>
